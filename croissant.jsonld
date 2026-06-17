@@ -50,7 +50,7 @@
   "@type": "SoftwareSourceCode",
   "dct:conformsTo": "https://bioschemas.org/profiles/ComputationalTool/1.0-RELEASE/",
   "@id": "protein-interaction-adapter",
-  "name": "Protein Interaction Adapter",
+  "name": "Protein Protein Interaction Adapter for BioCypher Edwin Carreno",
   "description": "BioCypher adapter that reads a synthetic protein-protein interaction TSV dataset, emits unique UniProt protein nodes, and emits typed protein-protein interaction edges for Neo4j knowledge graph generation.",
   "version": "0.1.0",
   "license": "https://opensource.org/licenses/MIT",
