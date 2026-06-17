@@ -37,3 +37,4 @@ neo4j:
   # ---------- YOUR CODE STARTS HERE ----------
   # import_call_bin_prefix: /path/to/your/neo4j-instance/bin/
   # ---------- YOUR CODE ENDS HERE ----------
+  import_call_bin_prefix: /home/edwin/.config/neo4j-desktop/Application/Data/dbmss/dbms-e29684ba-4192-4dc6-9d70-b2452eb98f0c/bin/

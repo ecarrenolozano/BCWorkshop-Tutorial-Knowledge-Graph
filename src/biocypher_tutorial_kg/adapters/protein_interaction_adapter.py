@@ -12,6 +12,33 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+REQUIRED_COLUMNS = {
+    "source",
+    "source_genesymbol",
+    "ncbi_tax_id_source",
+    "entity_type_source",
+    "target",
+    "target_genesymbol",
+    "ncbi_tax_id_target",
+    "entity_type_target",
+    "type",
+    "is_directed",
+    "is_stimulation",
+    "is_inhibition",
+    "consensus_direction",
+    "consensus_stimulation",
+    "consensus_inhibition",
+}
+
+BOOLEAN_COLUMNS = {
+    "is_directed",
+    "is_stimulation",
+    "is_inhibition",
+    "consensus_direction",
+    "consensus_stimulation",
+    "consensus_inhibition",
+}
+
 
 class ProteinInteractionAdapter:
     """
@@ -20,7 +47,7 @@ class ProteinInteractionAdapter:
     This adapter implements the BioCypher adapter interface and is intentionally
     scaffolded as a workshop exercise.
     """
-    
+
     def __init__(self, data_source: str | Path, **kwargs):
         """
         Initialize the adapter.
@@ -34,7 +61,7 @@ class ProteinInteractionAdapter:
         logger.info(
             "Initialized ProteinInteractionAdapter with data source: %s", data_source
         )
-        
+
     def get_nodes(self):
         """
         Extract nodes from the data source.
@@ -54,6 +81,7 @@ class ProteinInteractionAdapter:
 
         # Step 1: Read the interaction TSV into a DataFrame.
         df = pd.read_csv(self.data_source, sep="\t")
+        self._validate_columns(df)
 
         # Step 2.1: Build the source-side Protein table.
         source_nodes = df[
@@ -97,11 +125,18 @@ class ProteinInteractionAdapter:
         #          {"genesymbol": ..., "ncbi_tax_id": str(...), "entity_type": ...})
         # ─────────────────────────────────────────────────────────────────────
         # ---------- YOUR CODE STARTS HERE ----------
-
+        for _, row in proteins_df.iterrows():
+            yield (
+                str(row["node_id"]),
+                "uniprot_protein",
+                {
+                    "genesymbol": str(row["genesymbol"]),
+                    "ncbi_tax_id": str(row["ncbi_tax_id"]),
+                    "entity_type": str(row["entity_type"]),
+                },
+            )
         # ---------- YOUR CODE ENDS HERE ----------
 
-        
-    
     def get_edges(self):
         """
         Extract edges from the data source.
@@ -121,42 +156,7 @@ class ProteinInteractionAdapter:
         # Hint: Use pd.read_csv(self.data_source, sep="\t").
         # ─────────────────────────────────────────────────────────────────────
         # ---------- YOUR CODE STARTS HERE ----------
-
-        # ---------- YOUR CODE ENDS HERE ----------
-
-        # ── TODO 5b ──────────────────────────────────────────────────────────
-        # Task: Iterate over interaction rows and extract edge identifiers.
-        # Why:  Each row produces one edge; stable IDs make the graph easier
-        #       to validate and debug.
-        # Hint: Use df.iterrows(). From each row extract:
-        #         source_id  = str(row["source"])
-        #         target_id  = str(row["target"])
-        #         interaction_type = str(row["type"])
-        # ─────────────────────────────────────────────────────────────────────
-        # ---------- YOUR CODE STARTS HERE ----------
-
-        # ---------- YOUR CODE ENDS HERE ----------
-
-        # ── TODO 5c ──────────────────────────────────────────────────────────
-        # Task: Build a deterministic edge_id.
-        # Why:  A predictable edge_id makes tracing and deduplication easier.
-        # Hint: Use f"{source_id}_{target_id}_{interaction_type}".
-        # ─────────────────────────────────────────────────────────────────────
-        # ---------- YOUR CODE STARTS HERE ----------
-
-        # ---------- YOUR CODE ENDS HERE ----------
-
-        # ── TODO 5d ──────────────────────────────────────────────────────────
-        # Task: Build edge properties from interaction flags.
-        # Why:  These boolean flags carry biological meaning and must be
-        #       preserved as edge-level attributes in the graph.
-        # Hint: Build a dict with these keys, converting values to bool:
-        #         is_directed, is_stimulation, is_inhibition,
-        #         consensus_direction, consensus_stimulation,
-        #         consensus_inhibition
-        # ─────────────────────────────────────────────────────────────────────
-        # ---------- YOUR CODE STARTS HERE ----------
-
+        df = pd.read_csv(self.data_source, sep="\t")
         # ---------- YOUR CODE ENDS HERE ----------
 
         # ── TODO 5e ──────────────────────────────────────────────────────────
@@ -167,10 +167,18 @@ class ProteinInteractionAdapter:
         #       where source, target, or type is missing.
         # ─────────────────────────────────────────────────────────────────────
         # ---------- YOUR CODE STARTS HERE ----------
+        for _, row in df.iterrows():
+            source_id = str(row["source"])
+            target_id = str(row["target"])
+            interaction_type = str(row["type"])
+            edge_id = f"{source_id}_{target_id}_{interaction_type}"
+            properties = {
+                column: self._parse_bool(row[column]) for column in BOOLEAN_COLUMNS
+            }
+            yield (edge_id, source_id, target_id, interaction_type, properties)
 
         # ---------- YOUR CODE ENDS HERE ----------
 
-    
     def get_metadata(self) -> dict[str, Any]:
         """
         Get metadata about the data source.
@@ -185,7 +193,7 @@ class ProteinInteractionAdapter:
             "version": "0.1.0",
             "adapter_class": "ProteinInteractionAdapter",
         }
-    
+
     def validate_data_source(self) -> bool:
         """
         Validate that the TSV data source is accessible and properly formatted.
@@ -200,9 +208,26 @@ class ProteinInteractionAdapter:
 
             # Read one row to validate TSV format and required columns.
             df = pd.read_csv(data_path, sep="\t", nrows=1)
-            required_columns = {"source", "target"}
-            return required_columns.issubset(df.columns)
+            self._validate_columns(df)
+            return True
 
         except (OSError, ValueError, pd.errors.ParserError) as exc:
             logger.exception("Data source validation failed: %s", exc)
             return False
+
+    @staticmethod
+    def _validate_columns(df: pd.DataFrame) -> None:
+        missing_columns = REQUIRED_COLUMNS.difference(df.columns)
+        if missing_columns:
+            missing = ", ".join(sorted(missing_columns))
+            raise ValueError(f"Missing required TSV columns: {missing}")
+
+    @staticmethod
+    def _parse_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "t", "yes", "y"}
+        return bool(value)
